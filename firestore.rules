@@ -1,0 +1,100 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: history
+// Document ID: auto-generated
+// Fields:
+//   - userId: string (required) - The UID of the owner
+//   - periodName: string (required, 1-100 chars) - Name of the period
+//   - date: string (required, ISO 8601) - Creation date
+//   - data: map (required) - Financial input data
+//   - analysis: map (required) - Calculated ratios and results
+//   - createdAt: timestamp (optional) - Server timestamp
+//   - updatedAt: timestamp (optional) - Server timestamp
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+    
+    function uidUnchanged() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
+    }
+    
+    function uidNotModified() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidHistoryRecord(data) {
+      return data.userId is string &&
+             data.periodName is string && data.periodName.size() > 0 && data.periodName.size() <= 100 &&
+             isValidDateString(data.date) &&
+             data.data is map &&
+             data.analysis is map;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /history/{recordId} {
+      // Users can only read their own records
+      allow read: if isDocOwner();
+      
+      // Users can only create records for themselves
+      allow create: if isAuthenticated() && 
+                      isValidHistoryRecord(request.resource.data) && 
+                      isOwner(request.resource.data.userId) &&
+                      hasOnlyAllowedFields(['userId', 'periodName', 'date', 'data', 'analysis', 'createdAt']);
+      
+      // Users can only update their own records
+      allow update: if isDocOwner() && 
+                      isValidHistoryRecord(request.resource.data) && 
+                      uidNotModified() &&
+                      hasOnlyAllowedFields(['userId', 'periodName', 'date', 'data', 'analysis', 'createdAt', 'updatedAt']);
+      
+      // Users can only delete their own records
+      allow delete: if isDocOwner();
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

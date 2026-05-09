@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "FinancialData": {
+      "title": "FinancialData",
+      "description": "Financial input data for balance sheet and income statement.",
+      "type": "object",
+      "properties": {
+        "fixedAssets": { "type": "number" },
+        "intangibleAssets": { "type": "number" },
+        "cash": { "type": "number" },
+        "accountsReceivable": { "type": "number" },
+        "inventory": { "type": "number" },
+        "prepaidExpenses": { "type": "number" },
+        "longTermLoans": { "type": "number" },
+        "endOfServiceBenefits": { "type": "number" },
+        "accountsPayable": { "type": "number" },
+        "notesPayable": { "type": "number" },
+        "shortTermLoans": { "type": "number" },
+        "accruedExpenses": { "type": "number" },
+        "paidInCapital": { "type": "number" },
+        "retainedEarnings": { "type": "number" },
+        "reserves": { "type": "number" },
+        "revenue": { "type": "number" },
+        "cogs": { "type": "number" },
+        "salaries": { "type": "number" },
+        "rents": { "type": "number" },
+        "marketing": { "type": "number" },
+        "depreciation": { "type": "number" },
+        "otherIncomeExpense": { "type": "number" },
+        "zakatTaxes": { "type": "number" }
+      }
+    },
+    "AnalysisResult": {
+      "title": "AnalysisResult",
+      "description": "Calculated financial ratios and balance status.",
+      "type": "object",
+      "properties": {
+        "ratios": {
+          "type": "object",
+          "properties": {
+            "currentRatio": { "type": "number" },
+            "quickRatio": { "type": "number" },
+            "grossProfitMargin": { "type": "number" },
+            "netProfitMargin": { "type": "number" },
+            "roa": { "type": "number" },
+            "debtToEquity": { "type": "number" }
+          }
+        },
+        "isBalanced": { "type": "boolean" },
+        "totalAssets": { "type": "number" },
+        "totalLiabilitiesAndEquity": { "type": "number" },
+        "difference": { "type": "number" }
+      }
+    },
+    "HistoricalRecord": {
+      "title": "HistoricalRecord",
+      "description": "A saved financial period record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who owns this record." },
+        "periodName": { "type": "string", "description": "Name of the period (e.g., Q1 2024)." },
+        "date": { "type": "string", "format": "date-time", "description": "ISO date string of when the record was created." },
+        "data": { "$ref": "FinancialData" },
+        "analysis": { "$ref": "AnalysisResult" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "periodName", "date", "data", "analysis"]
+    }
+  },
+  "firestore": {
+    "/history/{recordId}": {
+      "schema": "HistoricalRecord",
+      "description": "Collection of historical financial records for all users."
+    }
+  }
+}
