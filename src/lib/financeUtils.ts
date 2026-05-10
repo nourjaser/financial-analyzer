@@ -1,5 +1,8 @@
 import { FinancialData, FinancialRatios, AnalysisResult, CashFlowResult } from '../types';
 
+type TFn = (key: string) => string;
+const identity: TFn = (k) => k;
+
 export const calculateRatios = (data: FinancialData): AnalysisResult => {
   const totalNonCurrentAssets = data.fixedAssets + data.intangibleAssets;
   const totalCurrentAssets = data.cash + data.accountsReceivable + data.inventory + data.prepaidExpenses;
@@ -42,29 +45,29 @@ export const calculateRatios = (data: FinancialData): AnalysisResult => {
   };
 };
 
-export const getQualitativeAnalysis = (ratios: FinancialRatios) => {
+export const getQualitativeAnalysis = (ratios: FinancialRatios, t: TFn = identity) => {
   const analysis = [];
-  
+
   // Liquidity
   if (ratios.currentRatio > 2) {
     analysis.push({
-      category: 'السيولة',
-      status: 'ممتاز',
-      text: 'تتمتع الشركة بسيولة قوية جداً، مما يعني قدرة عالية على سداد الالتزامات قصيرة الأجل.',
+      category: t('qa_liquidity'),
+      status: t('qs_excellent'),
+      text: t('qt_liqExcellent'),
       color: 'text-green-600'
     });
   } else if (ratios.currentRatio >= 1.2) {
     analysis.push({
-      category: 'السيولة',
-      status: 'جيد',
-      text: 'السيولة في مستوى آمن ومقبول محاسبياً.',
+      category: t('qa_liquidity'),
+      status: t('qs_good'),
+      text: t('qt_liqGood'),
       color: 'text-blue-600'
     });
   } else {
     analysis.push({
-      category: 'السيولة',
-      status: 'خطر',
-      text: 'هناك مخاطر في السيولة؛ قد تواجه الشركة صعوبة في سداد التزاماتها العاجلة.',
+      category: t('qa_liquidity'),
+      status: t('qs_risk'),
+      text: t('qt_liqRisk'),
       color: 'text-red-600'
     });
   }
@@ -72,23 +75,23 @@ export const getQualitativeAnalysis = (ratios: FinancialRatios) => {
   // Profitability - Net Margin
   if (ratios.netProfitMargin > 15) {
     analysis.push({
-      category: 'صافي الربح',
-      status: 'ممتاز',
-      text: 'هامش الربح الصافي قوي جداً، مما يدل على كفاءة تشغيلية عالية.',
+      category: t('qa_netProfit'),
+      status: t('qs_excellent'),
+      text: t('qt_netExcellent'),
       color: 'text-green-600'
     });
   } else if (ratios.netProfitMargin >= 5) {
     analysis.push({
-      category: 'صافي الربح',
-      status: 'جيد',
-      text: 'الربحية في نطاق الصناعة المعتاد.',
+      category: t('qa_netProfit'),
+      status: t('qs_good'),
+      text: t('qt_netGood'),
       color: 'text-blue-600'
     });
   } else {
     analysis.push({
-      category: 'صافي الربح',
-      status: 'مخاطرة',
-      text: 'الربحية منخفضة؛ يجب مراجعة هيكل التكاليف والمصاريف التشغيلية.',
+      category: t('qa_netProfit'),
+      status: t('qs_caution'),
+      text: t('qt_netRisk'),
       color: 'text-red-600'
     });
   }
@@ -96,23 +99,23 @@ export const getQualitativeAnalysis = (ratios: FinancialRatios) => {
   // Profitability - Gross Margin
   if (ratios.grossProfitMargin > 40) {
     analysis.push({
-      category: 'مجمل الربح',
-      status: 'ممتاز',
-      text: 'هامش مجمل الربح مرتفع، مما يشير إلى قوة في التسعير أو كفاءة في الإنتاج.',
+      category: t('qa_grossProfit'),
+      status: t('qs_excellent'),
+      text: t('qt_grossExcellent'),
       color: 'text-green-600'
     });
   } else if (ratios.grossProfitMargin >= 20) {
     analysis.push({
-      category: 'مجمل الربح',
-      status: 'جيد',
-      text: 'هامش مجمل الربح في مستوى صحي ومستقر.',
+      category: t('qa_grossProfit'),
+      status: t('qs_good'),
+      text: t('qt_grossGood'),
       color: 'text-blue-600'
     });
   } else {
     analysis.push({
-      category: 'مجمل الربح',
-      status: 'تحذير',
-      text: 'هامش مجمل الربح منخفض؛ قد تكون هناك زيادة في تكاليف الإنتاج أو ضغوط سعرية.',
+      category: t('qa_grossProfit'),
+      status: t('qs_warning'),
+      text: t('qt_grossWarning'),
       color: 'text-orange-600'
     });
   }
@@ -120,23 +123,23 @@ export const getQualitativeAnalysis = (ratios: FinancialRatios) => {
   // Leverage
   if (ratios.debtToEquity < 0.5) {
     analysis.push({
-      category: 'الرافعة المالية',
-      status: 'آمن',
-      text: 'الاعتماد على الديون منخفض جداً، مما يوفر استقراراً مالياً كبيراً.',
+      category: t('qa_leverage'),
+      status: t('qs_safe'),
+      text: t('qt_levSafe'),
       color: 'text-green-600'
     });
   } else if (ratios.debtToEquity <= 1.5) {
     analysis.push({
-      category: 'الرافعة المالية',
-      status: 'تنبيه',
-      text: 'مستوى الديون متوسط؛ يجب مراقبة الالتزامات المالية بانتظام.',
+      category: t('qa_leverage'),
+      status: t('qs_notice'),
+      text: t('qt_levNotice'),
       color: 'text-blue-600'
     });
   } else {
     analysis.push({
-      category: 'الرافعة المالية',
-      status: 'مخاطرة',
-      text: 'الاعتماد المفرط على الديون يمثل خطورة عالية على استمرارية المنشأة.',
+      category: t('qa_leverage'),
+      status: t('qs_caution'),
+      text: t('qt_levRisk'),
       color: 'text-red-600'
     });
   }
@@ -144,28 +147,28 @@ export const getQualitativeAnalysis = (ratios: FinancialRatios) => {
   return analysis;
 };
 
-export const getRecommendations = (ratios: FinancialRatios) => {
+export const getRecommendations = (ratios: FinancialRatios, t: TFn = identity) => {
   const recommendations = [];
-  
+
   if (ratios.currentRatio < 1.2) {
-    recommendations.push('العمل على تحويل الأصول غير المتداولة إلى نقدية أو تحسين تحصيل الذمم المدينة لزيادة السيولة.');
+    recommendations.push(t('rec_liquidity'));
   }
-  
+
   if (ratios.netProfitMargin < 5) {
-    recommendations.push('مراجعة تكلفة البضاعة المباعة (COGS) والتفاوض مع الموردين لخفض التكاليف.');
-    recommendations.push('تحليل المصاريف الإدارية والعمومية للبحث عن فرص لضغط النفقات.');
+    recommendations.push(t('rec_cogs'));
+    recommendations.push(t('rec_admin'));
   }
-  
+
   if (ratios.debtToEquity > 1.5) {
-    recommendations.push('التفكير في زيادة رأس المال أو إعادة جدولة الديون لتقليل عبء الفوائد والمخاطر.');
+    recommendations.push(t('rec_debt'));
   }
-  
+
   if (ratios.roa < 5) {
-    recommendations.push('تحسين استخدام الأصول الثابتة لزيادة العائد على الاستثمار.');
+    recommendations.push(t('rec_roa'));
   }
 
   if (recommendations.length === 0) {
-    recommendations.push('الاستمرار في النهج المالي الحالي مع التركيز على التوسع المدروس.');
+    recommendations.push(t('rec_default'));
   }
 
   return recommendations;

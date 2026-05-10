@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { makeT, makeFieldLabels, Lang } from './i18n';
 import { 
   Calculator, 
   TrendingUp, 
@@ -59,37 +60,7 @@ import { auth, db, googleProvider } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, orderBy, getDocFromServer } from 'firebase/firestore';
 
-const fieldLabels: Record<string, string> = {
-  fixedAssets: 'الأصول الثابتة',
-  intangibleAssets: 'الأصول غير الملموسة',
-  cash: 'النقدية وما يعادلها',
-  accountsReceivable: 'الذمم المدينة',
-  inventory: 'المخزون',
-  prepaidExpenses: 'مصاريف مدفوعة مقدماً',
-  longTermLoans: 'قروض طويلة الأجل',
-  endOfServiceBenefits: 'مخصصات ترك الخدمة',
-  accountsPayable: 'الدائنون',
-  notesPayable: 'أوراق دفع',
-  shortTermLoans: 'قروض قصيرة الأجل',
-  accruedExpenses: 'مصاريف مستحقة',
-  partnerCurrentAccount: 'جاري شريك',
-  paidInCapital: 'رأس المال',
-  retainedEarnings: 'الأرباح المبقاة',
-  reserves: 'الاحتياطيات',
-  revenue: 'المبيعات',
-  cogs: 'تكلفة المبيعات',
-  salaries: 'الرواتب',
-  rents: 'الإيجارات',
-  marketing: 'التسويق',
-  depreciation: 'الإهلاك',
-  adminExpenses: 'مصاريف إدارية',
-  otherIncomeExpense: 'إيرادات/مصاريف أخرى',
-  zakatTaxes: 'الزكاة والضرائب',
-  totalAssets: 'إجمالي الأصول',
-  totalLiabilities: 'إجمالي الخصوم',
-  totalEquity: 'إجمالي حقوق الملكية',
-  netIncome: 'صافي الربح النهائي'
-};
+// fieldLabels is built dynamically inside the component via makeFieldLabels(lang)
 
 const initialData: FinancialData = {
   fixedAssets: 0,
@@ -120,6 +91,10 @@ const initialData: FinancialData = {
 };
 
 export default function App() {
+  const [lang, setLang] = useState<Lang>('ar');
+  const t = makeT(lang);
+  const fieldLabels = makeFieldLabels(lang);
+
   const [data, setData] = useState<FinancialData>(initialData);
   const [activeTab, setActiveTab] = useState<'input' | 'analysis' | 'history' | 'cashflow'>('input');
   const [history, setHistory] = useState<HistoricalRecord[]>([]);
@@ -134,6 +109,12 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  // Sync html[lang] and html[dir] with language selection
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  }, [lang]);
 
   // Toast Auto-hide
   useEffect(() => {
@@ -155,7 +136,7 @@ export default function App() {
       path
     };
     console.error('Firestore Error: ', JSON.stringify(errInfo));
-    setToast({ message: 'حدث خطأ في الاتصال بقاعدة البيانات', type: 'error' });
+    setToast({ message: t('toastDBError'), type: 'error' });
   };
 
   // Auth Listener
@@ -184,7 +165,7 @@ export default function App() {
       } catch (error) {
         if (error instanceof Error && error.message.includes('the client is offline')) {
           console.error("Please check your Firebase configuration. The client is offline.");
-          setToast({ message: 'خطأ في الاتصال بـ Firebase. يرجى التحقق من الإعدادات.', type: 'error' });
+          setToast({ message: t('toastFirebaseError'), type: 'error' });
         }
       }
     }
@@ -235,32 +216,33 @@ export default function App() {
 
   const viewingRecord = useMemo(() => {
     if (viewingId === 'current') {
-      return { 
+      return {
         id: 'current',
-        periodName: 'الفترة الحالية (البيانات المدخلة)',
+        periodName: t('currentPeriodEntry'),
         data: data,
         analysis: currentAnalysis
       };
     }
     const found = history.find(h => h.id === viewingId);
-    return found || { 
+    return found || {
       id: 'current',
-      periodName: 'الفترة الحالية (البيانات المدخلة)',
+      periodName: t('currentPeriodEntry'),
       data: data,
       analysis: currentAnalysis
     };
-  }, [viewingId, data, currentAnalysis, history]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewingId, data, currentAnalysis, history, lang]);
 
-  const qualitative = useMemo(() => getQualitativeAnalysis(viewingRecord.analysis.ratios), [viewingRecord]);
-  const recommendations = useMemo(() => getRecommendations(viewingRecord.analysis.ratios), [viewingRecord]);
+  const qualitative = useMemo(() => getQualitativeAnalysis(viewingRecord.analysis.ratios, t), [viewingRecord, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  const recommendations = useMemo(() => getRecommendations(viewingRecord.analysis.ratios, t), [viewingRecord, lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveToHistory = async () => {
     if (!user) {
-      setToast({ message: 'يرجى تسجيل الدخول لحفظ البيانات', type: 'error' });
+      setToast({ message: t('toastLoginRequired'), type: 'error' });
       return;
     }
     if (!periodName.trim()) {
-      setToast({ message: 'يرجى إدخال اسم الفترة (مثلاً: الربع الأول 2024)', type: 'error' });
+      setToast({ message: t('toastPeriodRequired'), type: 'error' });
       return;
     }
 
@@ -275,7 +257,7 @@ export default function App() {
         });
         setEditingId(null);
         setPeriodName('');
-        setToast({ message: 'تم تحديث البيانات بنجاح', type: 'success' });
+        setToast({ message: t('toastUpdateSuccess'), type: 'success' });
       } else {
         await addDoc(collection(db, 'history'), {
           userId: user.uid,
@@ -286,7 +268,7 @@ export default function App() {
           createdAt: serverTimestamp()
         });
         setPeriodName('');
-        setToast({ message: 'تم حفظ البيانات بنجاح في السجل التاريخي', type: 'success' });
+        setToast({ message: t('toastSaveSuccess'), type: 'success' });
       }
     } catch (error) {
       handleFirestoreError(error, 'WRITE', 'history');
@@ -309,14 +291,14 @@ export default function App() {
 
   const deleteFromHistory = async (id: string) => {
     setConfirmModal({
-      message: 'هل أنت متأكد من حذف هذا السجل؟ لا يمكن التراجع عن هذه العملية.',
+      message: t('confirmDeleteMsg'),
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'history', id));
           if (baseId === id) setBaseId('current');
           if (targetId === id) setTargetId(null);
           if (viewingId === id) setViewingId('current');
-          setToast({ message: 'تم حذف السجل بنجاح', type: 'success' });
+          setToast({ message: t('toastDeleteSuccess'), type: 'success' });
         } catch (error) {
           handleFirestoreError(error, 'DELETE', `history/${id}`);
         }
@@ -354,7 +336,7 @@ export default function App() {
       pdf.save(`Financial_Analysis_${viewingRecord.periodName}.pdf`);
     } catch (error) {
       console.error('PDF Export Error:', error);
-      setToast({ message: 'حدث خطأ أثناء تصدير ملف PDF. يرجى المحاولة مرة أخرى.', type: 'error' });
+      setToast({ message: t('toastPDFError'), type: 'error' });
     } finally {
       setIsExporting(false);
     }
@@ -392,10 +374,11 @@ export default function App() {
   // Comparison logic
   const baseRecord = useMemo(() => {
     if (baseId === 'current') {
-      return { id: 'current', periodName: 'الفترة الحالية', data, analysis: currentAnalysis };
+      return { id: 'current', periodName: t('currentPeriod'), data, analysis: currentAnalysis };
     }
-    return history.find(h => h.id === baseId) || { id: 'current', periodName: 'الفترة الحالية', data, analysis: currentAnalysis };
-  }, [baseId, history, data, currentAnalysis]);
+    return history.find(h => h.id === baseId) || { id: 'current', periodName: t('currentPeriod'), data, analysis: currentAnalysis };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseId, history, data, currentAnalysis, lang]);
 
   const targetRecord = useMemo(() => {
     return history.find(h => h.id === targetId) || history[0] || null;
@@ -405,13 +388,14 @@ export default function App() {
   const comparisonData = useMemo(() => {
     if (!targetRecord) return [];
     return [
-      { name: 'نسبة التداول', current: baseRecord.analysis.ratios.currentRatio, previous: targetRecord.analysis.ratios.currentRatio },
-      { name: 'النسبة السريعة', current: baseRecord.analysis.ratios.quickRatio, previous: targetRecord.analysis.ratios.quickRatio },
-      { name: 'هامش الصافي %', current: baseRecord.analysis.ratios.netProfitMargin, previous: targetRecord.analysis.ratios.netProfitMargin },
-      { name: 'العائد على الأصول %', current: baseRecord.analysis.ratios.roa, previous: targetRecord.analysis.ratios.roa },
-      { name: 'نسبة الدين', current: baseRecord.analysis.ratios.debtToEquity, previous: targetRecord.analysis.ratios.debtToEquity },
+      { name: t('currentRatioRatio'), current: baseRecord.analysis.ratios.currentRatio, previous: targetRecord.analysis.ratios.currentRatio },
+      { name: t('quickRatioRatio'), current: baseRecord.analysis.ratios.quickRatio, previous: targetRecord.analysis.ratios.quickRatio },
+      { name: t('compNetMarginPct'), current: baseRecord.analysis.ratios.netProfitMargin, previous: targetRecord.analysis.ratios.netProfitMargin },
+      { name: t('compROAPct'), current: baseRecord.analysis.ratios.roa, previous: targetRecord.analysis.ratios.roa },
+      { name: t('compDebtRatio'), current: baseRecord.analysis.ratios.debtToEquity, previous: targetRecord.analysis.ratios.debtToEquity },
     ];
-  }, [baseRecord, targetRecord]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseRecord, targetRecord, lang]);
 
   // Trend data
   const trendData = useMemo(() => {
@@ -419,7 +403,7 @@ export default function App() {
       ...history,
       {
         id: 'current',
-        periodName: 'الفترة الحالية',
+        periodName: t('currentPeriod'),
         date: new Date().toISOString(),
         analysis: currentAnalysis,
         data: data
@@ -471,16 +455,17 @@ export default function App() {
     };
 
     return [
-      { subject: 'السيولة المتداولة', A: normalize(viewingRecord.analysis.ratios.currentRatio, 0.5, 2.5), fullMark: 100 },
-      { subject: 'السيولة السريعة', A: normalize(viewingRecord.analysis.ratios.quickRatio, 0.5, 2.0), fullMark: 100 },
-      { subject: 'هامش الربح', A: normalize(viewingRecord.analysis.ratios.netProfitMargin, 0, 20), fullMark: 100 },
-      { subject: 'العائد على الأصول', A: normalize(viewingRecord.analysis.ratios.roa, 0, 15), fullMark: 100 },
-      { subject: 'الرافعة المالية', A: normalize(2 - viewingRecord.analysis.ratios.debtToEquity, 0, 2), fullMark: 100 },
+      { subject: t('radarCurrentLiquidity'), A: normalize(viewingRecord.analysis.ratios.currentRatio, 0.5, 2.5), fullMark: 100 },
+      { subject: t('radarQuickLiquidity'), A: normalize(viewingRecord.analysis.ratios.quickRatio, 0.5, 2.0), fullMark: 100 },
+      { subject: t('radarProfitMargin'), A: normalize(viewingRecord.analysis.ratios.netProfitMargin, 0, 20), fullMark: 100 },
+      { subject: t('radarROA'), A: normalize(viewingRecord.analysis.ratios.roa, 0, 15), fullMark: 100 },
+      { subject: t('radarLeverage'), A: normalize(2 - viewingRecord.analysis.ratios.debtToEquity, 0, 2), fullMark: 100 },
     ];
-  }, [viewingRecord]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewingRecord, lang]);
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900" dir="rtl">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 min-h-16 py-2 sm:py-0 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 md:gap-4">
@@ -489,8 +474,8 @@ export default function App() {
               <Calculator className="text-white w-4 sm:w-6 h-4 sm:h-6" />
             </div>
             <h1 className="text-sm sm:text-xl font-bold text-slate-800 truncate">
-              <span className="hidden sm:inline">محلل البيانات المالية المحترف</span>
-              <span className="sm:hidden">محلل البيانات المالية</span>
+              <span className="hidden sm:inline">{t('appTitleFull')}</span>
+              <span className="sm:hidden">{t('appTitleShort')}</span>
             </h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 flex-1 md:flex-none overflow-x-auto">
@@ -499,27 +484,38 @@ export default function App() {
                 onClick={() => setActiveTab('input')}
                 className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'input' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-100'}`}
               >
-                إدخال
+                {t('tabInput')}
               </button>
               <button
                 onClick={() => setActiveTab('analysis')}
                 className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'analysis' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-100'}`}
               >
-                تحليل
+                {t('tabAnalysis')}
               </button>
               <button
                 onClick={() => setActiveTab('history')}
                 className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'history' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-100'}`}
               >
-                سجل
+                {t('tabHistory')}
               </button>
               <button
                 onClick={() => setActiveTab('cashflow')}
                 className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'cashflow' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-100'}`}
               >
-                تدفقات
+                {t('tabCashflow')}
               </button>
             </div>
+
+            <div className="h-8 w-[1px] bg-slate-200 mx-2 hidden md:block"></div>
+
+            {/* Language toggle */}
+            <button
+              onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+              className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md border border-slate-200 text-xs sm:text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors whitespace-nowrap"
+              title={lang === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}
+            >
+              🌐 {lang === 'ar' ? 'EN' : 'ع'}
+            </button>
 
             <div className="h-8 w-[1px] bg-slate-200 mx-2 hidden md:block"></div>
 
@@ -536,21 +532,21 @@ export default function App() {
                     <UserIcon className="w-4 h-4" />
                   </div>
                 )}
-                <button 
+                <button
                   onClick={logout}
                   className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                  title="تسجيل الخروج"
+                  title={t('signOutTitle')}
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
               </div>
             ) : (
-              <button 
+              <button
                 onClick={login}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm"
               >
                 <LogIn className="w-4 h-4" />
-                تسجيل الدخول
+                {t('signIn')}
               </button>
             )}
           </div>
@@ -576,23 +572,23 @@ export default function App() {
                       {currentAnalysis.isBalanced ? <CheckCircle2 className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500 font-bold">حالة التوازن</p>
+                      <p className="text-xs text-slate-500 font-bold">{t('balanceStatus')}</p>
                       <p className={`text-sm font-bold ${currentAnalysis.isBalanced ? 'text-green-700' : 'text-red-700'}`}>
-                        {currentAnalysis.isBalanced ? 'المعادلة متوازنة' : 'المعادلة غير متوازنة'}
+                        {currentAnalysis.isBalanced ? t('balancedEq') : t('unbalancedEq')}
                       </p>
                     </div>
                   </div>
                   <div className="flex gap-6">
                     <div className="text-center">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">إجمالي الأصول</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">{t('totalAssets')}</p>
                       <p className="font-mono font-bold text-slate-700">{currentAnalysis.totalAssets.toLocaleString()}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">الخصوم + الملكية</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">{t('liabPlusEquity')}</p>
                       <p className="font-mono font-bold text-slate-700">{currentAnalysis.totalLiabilitiesAndEquity.toLocaleString()}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">الفرق</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">{t('difference')}</p>
                       <p className={`font-mono font-bold ${currentAnalysis.difference === 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {currentAnalysis.difference.toLocaleString()}
                       </p>
@@ -604,12 +600,12 @@ export default function App() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 border-b pb-3 sm:pb-4 gap-2 sm:gap-0">
                     <div className="flex items-center gap-2">
                       <ArrowRightLeft className="text-blue-600 w-4 sm:w-5 h-4 sm:h-5" />
-                      <h2 className="text-base sm:text-lg font-semibold">الميزانية العمومية</h2>
+                      <h2 className="text-base sm:text-lg font-semibold">{t('balanceSheet')}</h2>
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
                       <input
                         type="text"
-                        placeholder="اسم الفترة (Q1 2024)"
+                        placeholder={t('periodPlaceholder')}
                         value={periodName}
                         onChange={(e) => setPeriodName(e.target.value)}
                         className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 flex-1 sm:flex-none min-w-0"
@@ -619,13 +615,13 @@ export default function App() {
                         className={`${editingId ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-colors whitespace-nowrap`}
                       >
                         {editingId ? <RefreshCw className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                        {editingId ? 'تحديث' : 'حفظ'}
+                        {editingId ? t('updatePeriod') : t('savePeriod')}
                       </button>
                       {editingId && (
                         <button
                           onClick={cancelEdit}
                           className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors"
-                          title="إلغاء التعديل"
+                          title={t('cancelEdit')}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -637,42 +633,42 @@ export default function App() {
                     {/* Assets Section */}
                     <section className="space-y-6">
                       <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider border-r-4 border-blue-600 pr-2">الأصول غير المتداولة (أولاً)</h3>
-                        <InputField label="الأصول الثابتة (صافي)" name="fixedAssets" value={data.fixedAssets} onChange={handleInputChange} />
-                        <InputField label="الأصول غير الملموسة" name="intangibleAssets" value={data.intangibleAssets} onChange={handleInputChange} />
+                        <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider border-r-4 border-blue-600 pr-2">{t('nonCurrentAssets')}</h3>
+                        <InputField label={t('fixedAssetsNet')} name="fixedAssets" value={data.fixedAssets} onChange={handleInputChange} />
+                        <InputField label={t('intangibleAssets')} name="intangibleAssets" value={data.intangibleAssets} onChange={handleInputChange} />
                       </div>
-                      
+
                       <div className="space-y-4 pt-4 border-t border-slate-100">
-                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider border-r-4 border-slate-400 pr-2">الأصول المتداولة</h3>
-                        <InputField label="النقدية وما يعادلها" name="cash" value={data.cash} onChange={handleInputChange} />
-                        <InputField label="الذمم المدينة (العملاء)" name="accountsReceivable" value={data.accountsReceivable} onChange={handleInputChange} />
-                        <InputField label="المخزون (آخر المدة)" name="inventory" value={data.inventory} onChange={handleInputChange} />
-                        <InputField label="مصاريف مدفوعة مقدماً" name="prepaidExpenses" value={data.prepaidExpenses} onChange={handleInputChange} />
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider border-r-4 border-slate-400 pr-2">{t('currentAssets')}</h3>
+                        <InputField label={t('cashEquivalents')} name="cash" value={data.cash} onChange={handleInputChange} />
+                        <InputField label={t('accountsReceivable')} name="accountsReceivable" value={data.accountsReceivable} onChange={handleInputChange} />
+                        <InputField label={t('inventoryEndPeriod')} name="inventory" value={data.inventory} onChange={handleInputChange} />
+                        <InputField label={t('prepaidExpenses')} name="prepaidExpenses" value={data.prepaidExpenses} onChange={handleInputChange} />
                       </div>
                     </section>
 
                     {/* Liabilities & Equity Section */}
                     <section className="space-y-6">
                       <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-red-600 uppercase tracking-wider border-r-4 border-red-600 pr-2">الخصوم غير المتداولة (أولاً)</h3>
-                        <InputField label="قروض بنكية طويلة الأجل" name="longTermLoans" value={data.longTermLoans} onChange={handleInputChange} />
-                        <InputField label="مخصصات ترك الخدمة" name="endOfServiceBenefits" value={data.endOfServiceBenefits} onChange={handleInputChange} />
+                        <h3 className="text-sm font-bold text-red-600 uppercase tracking-wider border-r-4 border-red-600 pr-2">{t('nonCurrentLiab')}</h3>
+                        <InputField label={t('longTermBankLoans')} name="longTermLoans" value={data.longTermLoans} onChange={handleInputChange} />
+                        <InputField label={t('endOfServiceBenefits')} name="endOfServiceBenefits" value={data.endOfServiceBenefits} onChange={handleInputChange} />
                       </div>
 
                       <div className="space-y-4 pt-4 border-t border-slate-100">
-                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider border-r-4 border-slate-400 pr-2">الخصوم المتداولة</h3>
-                        <InputField label="الدائنون (الموردون)" name="accountsPayable" value={data.accountsPayable} onChange={handleInputChange} />
-                        <InputField label="أوراق دفع" name="notesPayable" value={data.notesPayable} onChange={handleInputChange} />
-                        <InputField label="قروض قصيرة الأجل" name="shortTermLoans" value={data.shortTermLoans} onChange={handleInputChange} />
-                        <InputField label="مصاريف مستحقة" name="accruedExpenses" value={data.accruedExpenses} onChange={handleInputChange} />
-                        <InputField label="جاري شريك" name="partnerCurrentAccount" value={data.partnerCurrentAccount} onChange={handleInputChange} />
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider border-r-4 border-slate-400 pr-2">{t('currentLiab')}</h3>
+                        <InputField label={t('accountsPayableSuppliers')} name="accountsPayable" value={data.accountsPayable} onChange={handleInputChange} />
+                        <InputField label={t('notesPayable')} name="notesPayable" value={data.notesPayable} onChange={handleInputChange} />
+                        <InputField label={t('shortTermLoans')} name="shortTermLoans" value={data.shortTermLoans} onChange={handleInputChange} />
+                        <InputField label={t('accruedExpenses')} name="accruedExpenses" value={data.accruedExpenses} onChange={handleInputChange} />
+                        <InputField label={t('partnerCurrentAccount')} name="partnerCurrentAccount" value={data.partnerCurrentAccount} onChange={handleInputChange} />
                       </div>
 
                       <div className="space-y-4 pt-4 border-t border-slate-100">
-                        <h3 className="text-sm font-bold text-green-600 uppercase tracking-wider border-r-4 border-green-600 pr-2">حقوق الملكية</h3>
-                        <InputField label="رأس المال المدفوع" name="paidInCapital" value={data.paidInCapital} onChange={handleInputChange} />
-                        <InputField label="الأرباح المبقاة" name="retainedEarnings" value={data.retainedEarnings} onChange={handleInputChange} />
-                        <InputField label="الاحتياطيات" name="reserves" value={data.reserves} onChange={handleInputChange} />
+                        <h3 className="text-sm font-bold text-green-600 uppercase tracking-wider border-r-4 border-green-600 pr-2">{t('equity')}</h3>
+                        <InputField label={t('paidInCapital')} name="paidInCapital" value={data.paidInCapital} onChange={handleInputChange} />
+                        <InputField label={t('retainedEarnings')} name="retainedEarnings" value={data.retainedEarnings} onChange={handleInputChange} />
+                        <InputField label={t('reserves')} name="reserves" value={data.reserves} onChange={handleInputChange} />
                       </div>
                     </section>
                   </div>
@@ -681,37 +677,37 @@ export default function App() {
                 <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-slate-200">
                   <div className="flex items-center gap-2 mb-4 sm:mb-6 border-b pb-3 sm:pb-4">
                     <TrendingUp className="text-green-600 w-4 sm:w-5 h-4 sm:h-5" />
-                    <h2 className="text-base sm:text-lg font-semibold">قائمة الدخل</h2>
+                    <h2 className="text-base sm:text-lg font-semibold">{t('incomeStatement')}</h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
                     <div className="space-y-4">
-                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">الإيرادات والتكاليف المباشرة</h3>
-                      <InputField label="إيرادات المبيعات" name="revenue" value={data.revenue} onChange={handleInputChange} />
-                      <InputField label="تكلفة البضاعة المباعة (COGS)" name="cogs" value={data.cogs} onChange={handleInputChange} />
+                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('revenueAndCOGS')}</h3>
+                      <InputField label={t('revenueField')} name="revenue" value={data.revenue} onChange={handleInputChange} />
+                      <InputField label={t('cogsField')} name="cogs" value={data.cogs} onChange={handleInputChange} />
                       <div className="p-3 bg-slate-50 rounded-lg flex justify-between items-center">
-                        <span className="text-sm font-bold">مجمل الربح:</span>
+                        <span className="text-sm font-bold">{t('grossProfit')}</span>
                         <span className="font-mono font-bold text-blue-600">{currentValues.grossProfit.toLocaleString()}</span>
                       </div>
                     </div>
 
                     <div className="space-y-4">
-                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">المصاريف التشغيلية</h3>
-                      <InputField label="رواتب وأجور" name="salaries" value={data.salaries} onChange={handleInputChange} />
-                      <InputField label="إيجارات" name="rents" value={data.rents} onChange={handleInputChange} />
-                      <InputField label="مصاريف تسويق" name="marketing" value={data.marketing} onChange={handleInputChange} />
-                      <InputField label="إهلاك الأصول الثابتة" name="depreciation" value={data.depreciation} onChange={handleInputChange} />
-                      <InputField label="مصاريف إدارية" name="adminExpenses" value={data.adminExpenses} onChange={handleInputChange} />
+                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('operatingExpenses')}</h3>
+                      <InputField label={t('salariesField')} name="salaries" value={data.salaries} onChange={handleInputChange} />
+                      <InputField label={t('rentsField')} name="rents" value={data.rents} onChange={handleInputChange} />
+                      <InputField label={t('marketingField')} name="marketing" value={data.marketing} onChange={handleInputChange} />
+                      <InputField label={t('depreciationField')} name="depreciation" value={data.depreciation} onChange={handleInputChange} />
+                      <InputField label={t('adminExpensesField')} name="adminExpenses" value={data.adminExpenses} onChange={handleInputChange} />
                     </div>
 
                     <div className="space-y-4 pt-4 border-t border-slate-100">
                       <div className="p-3 bg-slate-100 rounded-lg flex justify-between items-center">
-                        <span className="text-sm font-bold">الربح التشغيلي (EBIT):</span>
+                        <span className="text-sm font-bold">{t('ebit')}</span>
                         <span className="font-mono font-bold text-indigo-600">{currentValues.ebit.toLocaleString()}</span>
                       </div>
-                      <InputField label="إيرادات/مصاريف أخرى (صافي)" name="otherIncomeExpense" value={data.otherIncomeExpense} onChange={handleInputChange} />
-                      <InputField label="الزكاة أو الضرائب" name="zakatTaxes" value={data.zakatTaxes} onChange={handleInputChange} />
+                      <InputField label={t('otherIncomeExpense')} name="otherIncomeExpense" value={data.otherIncomeExpense} onChange={handleInputChange} />
+                      <InputField label={t('zakatTaxes')} name="zakatTaxes" value={data.zakatTaxes} onChange={handleInputChange} />
                       <div className="p-3 bg-blue-600 text-white rounded-lg flex justify-between items-center shadow-md">
-                        <span className="text-sm font-bold">صافي الربح النهائي:</span>
+                        <span className="text-sm font-bold">{t('netIncomeFinal')}</span>
                         <span className="font-mono font-bold">{currentValues.netIncome.toLocaleString()}</span>
                       </div>
                     </div>
@@ -723,7 +719,7 @@ export default function App() {
               <div className="space-y-4 md:space-y-6">
                 <div className={`p-6 rounded-xl border-2 transition-all ${currentAnalysis.isBalanced ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold">توازن المعادلة المحاسبية</h3>
+                    <h3 className="font-bold">{t('accountingEquation')}</h3>
                     {currentAnalysis.isBalanced ? (
                       <CheckCircle2 className="text-green-600 w-6 h-6" />
                     ) : (
@@ -732,15 +728,15 @@ export default function App() {
                   </div>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span>إجمالي الأصول:</span>
+                      <span>{t('totalAssets')}:</span>
                       <span className="font-mono font-bold">{currentAnalysis.totalAssets.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>الالتزامات + الملكية:</span>
+                      <span>{t('liabAndEquity')}:</span>
                       <span className="font-mono font-bold">{currentAnalysis.totalLiabilitiesAndEquity.toLocaleString()}</span>
                     </div>
                     <div className="pt-2 border-t border-slate-200 flex justify-between font-bold">
-                      <span>الفرق:</span>
+                      <span>{t('difference')}:</span>
                       <span className={currentAnalysis.difference === 0 ? 'text-green-600' : 'text-red-600'}>
                         {currentAnalysis.difference.toLocaleString()}
                       </span>
@@ -748,7 +744,7 @@ export default function App() {
                   </div>
                   {!currentAnalysis.isBalanced && (
                     <p className="mt-4 text-xs text-red-600 leading-relaxed">
-                      * المعادلة غير متوازنة. يرجى التأكد من أن الأصول تساوي مجموع الالتزامات وحقوق الملكية.
+                      {t('unbalancedNote')}
                     </p>
                   )}
                 </div>
@@ -756,18 +752,18 @@ export default function App() {
                 <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg">
                   <h3 className="font-bold mb-4 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4" />
-                    نظرة سريعة على النسب
+                    {t('quickRatiosTitle')}
                   </h3>
                   <div className="space-y-4">
-                    <QuickStat label="نسبة التداول" value={currentAnalysis.ratios.currentRatio.toFixed(2)} />
-                    <QuickStat label="هامش الربح الصافي" value={`${currentAnalysis.ratios.netProfitMargin.toFixed(1)}%`} />
-                    <QuickStat label="نسبة الدين" value={currentAnalysis.ratios.debtToEquity.toFixed(2)} />
+                    <QuickStat label={t('currentRatioLabel')} value={currentAnalysis.ratios.currentRatio.toFixed(2)} />
+                    <QuickStat label={t('netProfitMarginLbl')} value={`${currentAnalysis.ratios.netProfitMargin.toFixed(1)}%`} />
+                    <QuickStat label={t('debtRatioLabel')} value={currentAnalysis.ratios.debtToEquity.toFixed(2)} />
                   </div>
-                  <button 
+                  <button
                     onClick={() => setActiveTab('analysis')}
                     className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2"
                   >
-                    عرض التحليل التفصيلي
+                    {t('viewDetailedAnalysis')}
                     <ArrowRightLeft className="w-4 h-4 rotate-180" />
                   </button>
                 </div>
@@ -787,11 +783,11 @@ export default function App() {
                   <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
                     <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                       <History className="text-blue-600" />
-                      الفترات المحفوظة
+                      {t('savedPeriods')}
                     </h3>
                     <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
                       {history.length === 0 ? (
-                        <p className="text-slate-500 text-center py-8">لا توجد فترات محفوظة بعد.</p>
+                        <p className="text-slate-500 text-center py-8">{t('noSavedPeriods')}</p>
                       ) : (
                         history.map((item) => (
                           <div 
@@ -807,31 +803,31 @@ export default function App() {
                                 </p>
                               </div>
                               <div className="flex gap-2">
-                                <button 
+                                <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleEdit(item);
                                   }}
                                   className="text-slate-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  title="تعديل"
+                                  title={t('editRecord')}
                                 >
                                   <Pencil className="w-4 h-4" />
                                 </button>
-                                <button 
+                                <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     deleteFromHistory(item.id);
                                   }}
                                   className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  title="حذف"
+                                  title={t('deleteRecord')}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
                             <div className="mt-3 flex gap-4 text-[10px] font-bold text-slate-500">
-                              <span>صافي الربح: {item.analysis.ratios.netProfitMargin.toFixed(1)}%</span>
-                              <span>السيولة: {item.analysis.ratios.currentRatio.toFixed(2)}</span>
+                              <span>{t('netProfitShort')}: {item.analysis.ratios.netProfitMargin.toFixed(1)}%</span>
+                              <span>{t('liquidityShort')}: {item.analysis.ratios.currentRatio.toFixed(2)}</span>
                             </div>
                           </div>
                         ))
@@ -846,17 +842,17 @@ export default function App() {
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                       <h3 className="text-lg font-bold flex items-center gap-2">
                         <ArrowRightLeft className="text-blue-600" />
-                        مقارنة الأداء
+                        {t('performanceComparison')}
                       </h3>
                       <div className="flex items-center gap-4">
                         <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-slate-400">سنة الأساس (الحالي)</label>
-                          <select 
+                          <label className="text-[10px] font-bold text-slate-400">{t('baseYear')}</label>
+                          <select
                             value={baseId}
                             onChange={(e) => setBaseId(e.target.value)}
                             className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                           >
-                            <option value="current">الفترة الحالية</option>
+                            <option value="current">{t('currentPeriod')}</option>
                             {history.map(record => (
                               <option key={record.id} value={record.id}>{record.periodName}</option>
                             ))}
@@ -864,13 +860,13 @@ export default function App() {
                         </div>
                         <ArrowRightLeft className="w-4 h-4 text-slate-300 mt-4" />
                         <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-slate-400">سنة المقارنة (السابق)</label>
-                          <select 
+                          <label className="text-[10px] font-bold text-slate-400">{t('comparisonYear')}</label>
+                          <select
                             value={targetId || ''}
                             onChange={(e) => setTargetId(e.target.value)}
                             className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
                           >
-                            <option value="" disabled>اختر فترة...</option>
+                            <option value="" disabled>{t('choosePeriod')}</option>
                             {history.map(record => (
                               <option key={record.id} value={record.id}>{record.periodName}</option>
                             ))}
@@ -918,8 +914,8 @@ export default function App() {
                     ) : (
                       <div className="bg-blue-50 border border-blue-100 p-12 rounded-xl text-center">
                         <History className="w-12 h-12 text-blue-200 mx-auto mb-4" />
-                        <h3 className="text-blue-800 font-bold">اختر فترة للمقارنة</h3>
-                        <p className="text-blue-600 text-sm mt-2">قم باختيار أحد السجلات من القائمة الجانبية أو القائمة المنسدلة لمقارنة أدائها.</p>
+                        <h3 className="text-blue-800 font-bold">{t('selectPeriodPromptTitle')}</h3>
+                        <p className="text-blue-600 text-sm mt-2">{t('selectPeriodPromptBody')}</p>
                       </div>
                     )}
                   </div>
@@ -927,12 +923,12 @@ export default function App() {
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                       <TrendingUp className="text-green-600" />
-                      تحليل الاتجاهات (Trends)
+                      {t('trendsTitle')}
                     </h3>
                     <div className="h-64">
                       {trendData.length < 2 ? (
                         <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                          تحتاج إلى حفظ فترتين على الأقل لعرض الرسوم البيانية للاتجاهات.
+                          {t('trendsMinPeriods')}
                         </div>
                       ) : (
                         <ResponsiveContainer width="100%" height="100%">
@@ -942,8 +938,8 @@ export default function App() {
                             <YAxis orientation="right" />
                             <Tooltip />
                             <Legend />
-                            <Line type="monotone" dataKey="netProfit" name="هامش الربح %" stroke="#10b981" strokeWidth={3} dot={{ r: 6 }} activeDot={{ r: 8 }} />
-                            <Line type="monotone" dataKey="currentRatio" name="نسبة التداول" stroke="#3b82f6" strokeWidth={3} dot={{ r: 6 }} activeDot={{ r: 8 }} />
+                            <Line type="monotone" dataKey="netProfit" name={t('netProfitPctLine')} stroke="#10b981" strokeWidth={3} dot={{ r: 6 }} activeDot={{ r: 8 }} />
+                            <Line type="monotone" dataKey="currentRatio" name={t('currentRatioLine')} stroke="#3b82f6" strokeWidth={3} dot={{ r: 6 }} activeDot={{ r: 8 }} />
                           </LineChart>
                         </ResponsiveContainer>
                       )}
@@ -955,25 +951,25 @@ export default function App() {
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                       <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                         <ArrowRightLeft className="text-blue-600" />
-                        التحليل الأفقي للقوائم المالية
+                        {t('horizontalAnalysis')}
                       </h3>
                       <div className="overflow-x-auto">
                         <table className="w-full text-right text-sm">
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
-                              <th className="px-4 py-3 font-bold border-b">البند</th>
-                              <th className="px-4 py-3 font-bold border-b">الفترة السابقة</th>
-                              <th className="px-4 py-3 font-bold border-b">الفترة الحالية</th>
-                              <th className="px-4 py-3 font-bold border-b">التغير (قيمة)</th>
-                              <th className="px-4 py-3 font-bold border-b">التغير (%)</th>
+                              <th className="px-4 py-3 font-bold border-b">{t('haItem')}</th>
+                              <th className="px-4 py-3 font-bold border-b">{t('haPreviousPeriod')}</th>
+                              <th className="px-4 py-3 font-bold border-b">{t('haCurrentPeriod')}</th>
+                              <th className="px-4 py-3 font-bold border-b">{t('haChangeValue')}</th>
+                              <th className="px-4 py-3 font-bold border-b">{t('haChangePct')}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {[
-                              { title: 'الأصول (Assets)', fields: ['fixedAssets', 'intangibleAssets', 'cash', 'accountsReceivable', 'inventory', 'prepaidExpenses', 'totalAssets'] },
-                              { title: 'الخصوم (Liabilities)', fields: ['longTermLoans', 'endOfServiceBenefits', 'accountsPayable', 'notesPayable', 'shortTermLoans', 'accruedExpenses', 'partnerCurrentAccount', 'totalLiabilities'] },
-                              { title: 'حقوق الملكية (Equity)', fields: ['paidInCapital', 'retainedEarnings', 'reserves', 'totalEquity'] },
-                              { title: 'قائمة الدخل (Income Statement)', fields: ['revenue', 'cogs', 'salaries', 'rents', 'marketing', 'depreciation', 'adminExpenses', 'otherIncomeExpense', 'zakatTaxes', 'netIncome'] }
+                              { title: t('haAssetsSection'), fields: ['fixedAssets', 'intangibleAssets', 'cash', 'accountsReceivable', 'inventory', 'prepaidExpenses', 'totalAssets'] },
+                              { title: t('haLiabSection'), fields: ['longTermLoans', 'endOfServiceBenefits', 'accountsPayable', 'notesPayable', 'shortTermLoans', 'accruedExpenses', 'partnerCurrentAccount', 'totalLiabilities'] },
+                              { title: t('haEquitySection'), fields: ['paidInCapital', 'retainedEarnings', 'reserves', 'totalEquity'] },
+                              { title: t('haIncomeSection'), fields: ['revenue', 'cogs', 'salaries', 'rents', 'marketing', 'depreciation', 'adminExpenses', 'otherIncomeExpense', 'zakatTaxes', 'netIncome'] }
                             ].map((section) => (
                               <React.Fragment key={section.title}>
                                 <tr className="bg-slate-100/50">
@@ -1021,18 +1017,18 @@ export default function App() {
               {!cashFlowData ? (
                 <div className="bg-blue-50 border border-blue-100 p-12 rounded-xl text-center">
                   <Wallet className="w-12 h-12 text-blue-200 mx-auto mb-4" />
-                  <h3 className="text-blue-800 font-bold">تحليل التدفقات النقدية يتطلب فترتين</h3>
-                  <p className="text-blue-600 text-sm mt-2">يرجى الذهاب إلى "السجل التاريخي" واختيار فترة أساس وفترة مقارنة لاستخراج قائمة التدفقات النقدية.</p>
+                  <h3 className="text-blue-800 font-bold">{t('cashFlowRequireTwo')}</h3>
+                  <p className="text-blue-600 text-sm mt-2">{t('cashFlowRequireTwoBody')}</p>
                 </div>
               ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                     <h2 className="text-xl font-bold flex items-center gap-2">
                       <Wallet className="text-blue-600" />
-                      قائمة التدفقات النقدية (الطريقة غير المباشرة)
+                      {t('cashFlowTitle')}
                     </h2>
                     <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200">
-                      مقارنة بـ: {targetRecord?.periodName}
+                      {t('comparedTo')} {targetRecord?.periodName}
                     </div>
                   </div>
                   
@@ -1040,61 +1036,61 @@ export default function App() {
                     <table className="w-full text-right text-sm">
                       <thead>
                         <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
-                          <th className="px-6 py-3 font-bold border-b">البند / النشاط</th>
-                          <th className="px-6 py-3 font-bold border-b text-left">المبلغ</th>
+                          <th className="px-6 py-3 font-bold border-b">{t('cfItemActivity')}</th>
+                          <th className="px-6 py-3 font-bold border-b text-left">{t('cfAmount')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {/* Operating Activities */}
                         <tr className="bg-blue-50/30">
-                          <td colSpan={2} className="px-6 py-3 font-bold text-blue-800">أولاً: التدفقات النقدية من الأنشطة التشغيلية</td>
+                          <td colSpan={2} className="px-6 py-3 font-bold text-blue-800">{t('cfOperatingHeader')}</td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">صافي الربح للفترة</td>
+                          <td className="px-6 py-3 pr-10">{t('cfNetIncome')}</td>
                           <td className="px-6 py-3 font-mono text-left">{cashFlowData.operating.netIncome.toLocaleString()}</td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">يضاف: الإهلاك (مصروف غير نقدي)</td>
+                          <td className="px-6 py-3 pr-10">{t('cfAddDeprec')}</td>
                           <td className="px-6 py-3 font-mono text-left text-green-600">+{cashFlowData.operating.depreciation.toLocaleString()}</td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في الذمم المدينة (العملاء)</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaAR')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.operating.deltaAR > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {cashFlowData.operating.deltaAR > 0 ? '-' : '+'}{Math.abs(cashFlowData.operating.deltaAR).toLocaleString()}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في المخزون</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaInventory')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.operating.deltaInventory > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {cashFlowData.operating.deltaInventory > 0 ? '-' : '+'}{Math.abs(cashFlowData.operating.deltaInventory).toLocaleString()}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في المصاريف المدفوعة مقدماً</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaPrepaid')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.operating.deltaPrepaid > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {cashFlowData.operating.deltaPrepaid > 0 ? '-' : '+'}{Math.abs(cashFlowData.operating.deltaPrepaid).toLocaleString()}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في الدائنين (الموردين)</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaAP')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.operating.deltaAP > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {cashFlowData.operating.deltaAP > 0 ? '+' : '-'}{Math.abs(cashFlowData.operating.deltaAP).toLocaleString()}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في أوراق الدفع</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaNotes')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.operating.deltaNotesPayable > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {cashFlowData.operating.deltaNotesPayable > 0 ? '+' : '-'}{Math.abs(cashFlowData.operating.deltaNotesPayable).toLocaleString()}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في المصاريف المستحقة</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaAccrued')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.operating.deltaAccrued > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {cashFlowData.operating.deltaAccrued > 0 ? '+' : '-'}{Math.abs(cashFlowData.operating.deltaAccrued).toLocaleString()}
                           </td>
                         </tr>
                         <tr className="bg-slate-50 font-bold">
-                          <td className="px-6 py-3">صافي التدفقات النقدية من الأنشطة التشغيلية</td>
+                          <td className="px-6 py-3">{t('cfNetOperating')}</td>
                           <td className={`px-6 py-3 font-mono text-left border-t-2 border-slate-300 ${cashFlowData.operating.total >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                             {cashFlowData.operating.total.toLocaleString()}
                           </td>
@@ -1102,22 +1098,22 @@ export default function App() {
 
                         {/* Investing Activities */}
                         <tr className="bg-blue-50/30">
-                          <td colSpan={2} className="px-6 py-3 font-bold text-blue-800">ثانياً: التدفقات النقدية من الأنشطة الاستثمارية</td>
+                          <td colSpan={2} className="px-6 py-3 font-bold text-blue-800">{t('cfInvestingHeader')}</td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في الأصول الثابتة (شراء/بيع)</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaFixed')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.investing.deltaFixedAssets > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {cashFlowData.investing.deltaFixedAssets > 0 ? '-' : '+'}{Math.abs(cashFlowData.investing.deltaFixedAssets).toLocaleString()}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في الأصول غير الملموسة</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaIntangible')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.investing.deltaIntangibleAssets > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {cashFlowData.investing.deltaIntangibleAssets > 0 ? '-' : '+'}{Math.abs(cashFlowData.investing.deltaIntangibleAssets).toLocaleString()}
                           </td>
                         </tr>
                         <tr className="bg-slate-50 font-bold">
-                          <td className="px-6 py-3">صافي التدفقات النقدية من الأنشطة الاستثمارية</td>
+                          <td className="px-6 py-3">{t('cfNetInvesting')}</td>
                           <td className={`px-6 py-3 font-mono text-left border-t-2 border-slate-300 ${cashFlowData.investing.total >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                             {cashFlowData.investing.total.toLocaleString()}
                           </td>
@@ -1125,28 +1121,28 @@ export default function App() {
 
                         {/* Financing Activities */}
                         <tr className="bg-blue-50/30">
-                          <td colSpan={2} className="px-6 py-3 font-bold text-blue-800">ثالثاً: التدفقات النقدية من الأنشطة التمويلية</td>
+                          <td colSpan={2} className="px-6 py-3 font-bold text-blue-800">{t('cfFinancingHeader')}</td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في القروض طويلة الأجل</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaLTLoans')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.financing.deltaLongTermLoans > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {cashFlowData.financing.deltaLongTermLoans > 0 ? '+' : '-'}{Math.abs(cashFlowData.financing.deltaLongTermLoans).toLocaleString()}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في القروض قصيرة الأجل</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaSTLoans')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.financing.deltaShortTermLoans > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {cashFlowData.financing.deltaShortTermLoans > 0 ? '+' : '-'}{Math.abs(cashFlowData.financing.deltaShortTermLoans).toLocaleString()}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-6 py-3 pr-10">التغير في رأس المال (زيادة/تخفيض)</td>
+                          <td className="px-6 py-3 pr-10">{t('cfDeltaCapital')}</td>
                           <td className={`px-6 py-3 font-mono text-left ${cashFlowData.financing.deltaCapital > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {cashFlowData.financing.deltaCapital > 0 ? '+' : '-'}{Math.abs(cashFlowData.financing.deltaCapital).toLocaleString()}
                           </td>
                         </tr>
                         <tr className="bg-slate-50 font-bold">
-                          <td className="px-6 py-3">صافي التدفقات النقدية من الأنشطة التمويلية</td>
+                          <td className="px-6 py-3">{t('cfNetFinancing')}</td>
                           <td className={`px-6 py-3 font-mono text-left border-t-2 border-slate-300 ${cashFlowData.financing.total >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                             {cashFlowData.financing.total.toLocaleString()}
                           </td>
@@ -1154,7 +1150,7 @@ export default function App() {
 
                         {/* Net Change */}
                         <tr className="bg-blue-900 text-white font-bold text-lg">
-                          <td className="px-6 py-4">صافي الزيادة/النقص في النقدية خلال الفترة</td>
+                          <td className="px-6 py-4">{t('cfNetChange')}</td>
                           <td className="px-6 py-4 font-mono text-left">{cashFlowData.netCashFlow.toLocaleString()}</td>
                         </tr>
                       </tbody>
@@ -1164,7 +1160,7 @@ export default function App() {
                   <div className="p-6 bg-slate-50 border-t border-slate-200">
                     <div className="flex items-center gap-3 text-slate-600 italic text-sm">
                       <AlertTriangle className="w-4 h-4 text-orange-500" />
-                      ملاحظة: يتم استخراج هذه القائمة باستخدام الطريقة غير المباشرة بناءً على التغيرات في الميزانية العمومية وقائمة الدخل بين الفترتين المختارتين.
+                      {t('cfNote')}
                     </div>
                   </div>
                 </div>
@@ -1185,8 +1181,8 @@ export default function App() {
                     <History className="w-4 sm:w-5 h-4 sm:h-5" />
                   </div>
                   <div>
-                    <h3 className="text-xs sm:text-sm font-bold text-slate-800">عرض تحليل الفترة:</h3>
-                    <p className="text-[10px] sm:text-xs text-slate-500">اختر الفترة لعرض تحليلها المالي</p>
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-800">{t('viewPeriodAnalysis')}</h3>
+                    <p className="text-[10px] sm:text-xs text-slate-500">{t('choosePeriodHint')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -1195,7 +1191,7 @@ export default function App() {
                     onChange={(e) => setViewingId(e.target.value)}
                     className="bg-slate-50 border border-slate-200 rounded-lg px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 flex-1 sm:flex-none sm:min-w-[200px]"
                   >
-                    <option value="current">الفترة الحالية (البيانات المدخلة)</option>
+                    <option value="current">{t('currentPeriodEntry')}</option>
                     {history.map(record => (
                       <option key={record.id} value={record.id}>{record.periodName}</option>
                     ))}
@@ -1214,28 +1210,28 @@ export default function App() {
               <div id="analysis-report" className="space-y-4 sm:space-y-8 p-1">
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <SummaryCard 
-                  label="إجمالي الأصول" 
-                  value={viewingRecord.analysis.totalAssets.toLocaleString()} 
-                  icon={<PieChartIcon className="text-blue-600" />} 
+                <SummaryCard
+                  label={t('totalAssetsCard')}
+                  value={viewingRecord.analysis.totalAssets.toLocaleString()}
+                  icon={<PieChartIcon className="text-blue-600" />}
                   color="blue"
                 />
-                <SummaryCard 
-                  label="صافي الربح" 
-                  value={viewingValues.netIncome.toLocaleString()} 
-                  icon={<TrendingUp className="text-green-600" />} 
+                <SummaryCard
+                  label={t('netProfitCard')}
+                  value={viewingValues.netIncome.toLocaleString()}
+                  icon={<TrendingUp className="text-green-600" />}
                   color="green"
                 />
-                <SummaryCard 
-                  label="إجمالي حقوق الملكية" 
-                  value={viewingValues.totalEquity.toLocaleString()} 
-                  icon={<ShieldAlert className="text-purple-600" />} 
+                <SummaryCard
+                  label={t('totalEquityCard')}
+                  value={viewingValues.totalEquity.toLocaleString()}
+                  icon={<ShieldAlert className="text-purple-600" />}
                   color="purple"
                 />
-                <SummaryCard 
-                  label="نسبة التداول" 
-                  value={viewingRecord.analysis.ratios.currentRatio.toFixed(2)} 
-                  icon={<Activity className="text-orange-600" />} 
+                <SummaryCard
+                  label={t('currentRatioCard')}
+                  value={viewingRecord.analysis.ratios.currentRatio.toFixed(2)}
+                  icon={<Activity className="text-orange-600" />}
                   color="orange"
                 />
               </div>
@@ -1247,22 +1243,30 @@ export default function App() {
                   <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="p-4 bg-slate-50 border-b border-slate-100 font-bold flex items-center gap-2">
                       <Activity className="text-blue-600 w-5 h-5" />
-                      مؤشرات السيولة (Liquidity)
+                      {t('liquidityIndicators')}
                     </div>
                     <div className="p-3 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                      <RatioIndicator 
-                        label="نسبة التداول" 
-                        value={viewingRecord.analysis.ratios.currentRatio} 
-                        benchmark={1.5} 
+                      <RatioIndicator
+                        label={t('currentRatioRatio')}
+                        value={viewingRecord.analysis.ratios.currentRatio}
+                        benchmark={1.5}
                         format="number"
-                        description="قدرة الشركة على سداد التزاماتها قصيرة الأجل"
+                        description={t('currentRatioDesc')}
+                        statusGood={t('statusGood')}
+                        statusBad={t('statusNeedsWork')}
+                        benchmarkLabel={t('benchmark')}
+                        statusLabel={t('statusLabel')}
                       />
-                      <RatioIndicator 
-                        label="النسبة السريعة" 
-                        value={viewingRecord.analysis.ratios.quickRatio} 
-                        benchmark={1.0} 
+                      <RatioIndicator
+                        label={t('quickRatioRatio')}
+                        value={viewingRecord.analysis.ratios.quickRatio}
+                        benchmark={1.0}
                         format="number"
-                        description="السيولة الفورية باستبعاد المخزون"
+                        description={t('quickRatioDesc')}
+                        statusGood={t('statusGood')}
+                        statusBad={t('statusNeedsWork')}
+                        benchmarkLabel={t('benchmark')}
+                        statusLabel={t('statusLabel')}
                       />
                     </div>
                   </div>
@@ -1271,36 +1275,52 @@ export default function App() {
                   <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="p-4 bg-slate-50 border-b border-slate-100 font-bold flex items-center gap-2">
                       <TrendingUp className="text-green-600 w-5 h-5" />
-                      مؤشرات الربحية (Profitability)
+                      {t('profitabilityIndicators')}
                     </div>
                     <div className="p-3 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                      <RatioIndicator 
-                        label="هامش مجمل الربح" 
-                        value={viewingRecord.analysis.ratios.grossProfitMargin} 
-                        benchmark={30} 
+                      <RatioIndicator
+                        label={t('grossProfitMarginRatio')}
+                        value={viewingRecord.analysis.ratios.grossProfitMargin}
+                        benchmark={30}
                         format="percent"
-                        description="كفاءة الإنتاج والتسعير"
+                        description={t('grossProfitMarginDesc')}
+                        statusGood={t('statusGood')}
+                        statusBad={t('statusNeedsWork')}
+                        benchmarkLabel={t('benchmark')}
+                        statusLabel={t('statusLabel')}
                       />
-                      <RatioIndicator 
-                        label="هامش صافي الربح" 
-                        value={viewingRecord.analysis.ratios.netProfitMargin} 
-                        benchmark={10} 
+                      <RatioIndicator
+                        label={t('netProfitMarginRatio')}
+                        value={viewingRecord.analysis.ratios.netProfitMargin}
+                        benchmark={10}
                         format="percent"
-                        description="الربحية النهائية بعد كافة المصاريف"
+                        description={t('netProfitMarginDesc')}
+                        statusGood={t('statusGood')}
+                        statusBad={t('statusNeedsWork')}
+                        benchmarkLabel={t('benchmark')}
+                        statusLabel={t('statusLabel')}
                       />
-                      <RatioIndicator 
-                        label="العائد على الأصول" 
-                        value={viewingRecord.analysis.ratios.roa} 
-                        benchmark={8} 
+                      <RatioIndicator
+                        label={t('roaRatio')}
+                        value={viewingRecord.analysis.ratios.roa}
+                        benchmark={8}
                         format="percent"
-                        description="كفاءة استخدام الأصول لتوليد الأرباح"
+                        description={t('roaDesc')}
+                        statusGood={t('statusGood')}
+                        statusBad={t('statusNeedsWork')}
+                        benchmarkLabel={t('benchmark')}
+                        statusLabel={t('statusLabel')}
                       />
-                      <RatioIndicator 
-                        label="العائد على حقوق الملكية" 
-                        value={(viewingValues.netIncome / viewingValues.totalEquity) * 100} 
-                        benchmark={12} 
+                      <RatioIndicator
+                        label={t('roeRatio')}
+                        value={(viewingValues.netIncome / viewingValues.totalEquity) * 100}
+                        benchmark={12}
                         format="percent"
-                        description="العائد المحقق للمساهمين"
+                        description={t('roeDesc')}
+                        statusGood={t('statusGood')}
+                        statusBad={t('statusNeedsWork')}
+                        benchmarkLabel={t('benchmark')}
+                        statusLabel={t('statusLabel')}
                       />
                     </div>
                   </div>
@@ -1309,16 +1329,20 @@ export default function App() {
                   <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="p-4 bg-slate-50 border-b border-slate-100 font-bold flex items-center gap-2">
                       <ShieldAlert className="text-purple-600 w-5 h-5" />
-                      مؤشرات الملاءة المالية (Solvency)
+                      {t('solvencyIndicators')}
                     </div>
                     <div className="p-6">
-                      <RatioIndicator 
-                        label="نسبة الدين إلى حقوق الملكية" 
-                        value={viewingRecord.analysis.ratios.debtToEquity} 
-                        benchmark={1.0} 
+                      <RatioIndicator
+                        label={t('debtToEquityRatio')}
+                        value={viewingRecord.analysis.ratios.debtToEquity}
+                        benchmark={1.0}
                         format="number"
                         inverse
-                        description="مدى الاعتماد على الديون مقابل التمويل الذاتي"
+                        description={t('debtToEquityDesc')}
+                        statusGood={t('statusGood')}
+                        statusBad={t('statusNeedsWork')}
+                        benchmarkLabel={t('benchmark')}
+                        statusLabel={t('statusLabel')}
                       />
                     </div>
                   </div>
@@ -1330,7 +1354,7 @@ export default function App() {
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                       <Target className="text-red-600" />
-                      بصمة الصحة المالية
+                      {t('radarTitle')}
                     </h3>
                     <div className="h-64 w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1339,7 +1363,7 @@ export default function App() {
                           <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
                           <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                           <Radar
-                            name="الأداء"
+                            name={t('radarPerformance')}
                             dataKey="A"
                             stroke="#2563eb"
                             fill="#3b82f6"
@@ -1349,7 +1373,7 @@ export default function App() {
                       </ResponsiveContainer>
                     </div>
                     <p className="text-xs text-slate-500 text-center mt-4">
-                      كلما اتسعت المساحة الزرقاء، زادت قوة التوازن المالي للشركة
+                      {t('radarCaption')}
                     </p>
                   </div>
 
@@ -1357,7 +1381,7 @@ export default function App() {
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                       <AlertTriangle className="text-orange-600" />
-                      التحليل النوعي
+                      {t('qualitativeTitle')}
                     </h3>
                     <div className="space-y-4">
                       {qualitative.map((item, idx) => (
@@ -1384,7 +1408,7 @@ export default function App() {
                 <div className="relative z-10">
                   <h3 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
                     <Lightbulb className="text-yellow-400 w-6 sm:w-8 h-6 sm:h-8" />
-                    توصيات الخبير المالي
+                    {t('recommendationsTitle')}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                     {recommendations.map((rec, idx) => (
@@ -1441,20 +1465,20 @@ export default function App() {
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
                 <AlertTriangle className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">تأكيد الحذف</h3>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">{t('confirmDeleteTitle')}</h3>
               <p className="text-slate-600 mb-8">{confirmModal.message}</p>
               <div className="flex gap-4">
-                <button 
+                <button
                   onClick={() => setConfirmModal(null)}
                   className="flex-1 px-6 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
                 >
-                  إلغاء
+                  {t('cancel')}
                 </button>
-                <button 
+                <button
                   onClick={confirmModal.onConfirm}
                   className="flex-1 px-6 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors"
                 >
-                  حذف نهائي
+                  {t('deleteFinal')}
                 </button>
               </div>
             </motion.div>
@@ -1464,8 +1488,8 @@ export default function App() {
 
       <footer className="bg-white border-t border-slate-200 py-8 mt-12">
         <div className="max-w-7xl mx-auto px-4 text-center text-slate-500 text-sm">
-          <p>© 2026 نظام التحليل المالي الذكي - جميع الحقوق محفوظة</p>
-          <p className="mt-2">تم التصميم لأغراض المحاسبة القانونية والتحليل المالي الاحترافي</p>
+          <p>{t('footerCopyright')}</p>
+          <p className="mt-2">{t('footerSubtitle')}</p>
         </div>
       </footer>
     </div>
@@ -1532,17 +1556,21 @@ function SummaryCard({ label, value, icon, color }: { label: string, value: stri
   );
 }
 
-function RatioIndicator({ label, value, benchmark, format, description, inverse = false }: { 
-  label: string, 
-  value: number, 
-  benchmark: number, 
-  format: 'number' | 'percent', 
+function RatioIndicator({ label, value, benchmark, format, description, inverse = false, statusGood = 'Excellent', statusBad = 'Needs Improvement', benchmarkLabel = 'Benchmark', statusLabel = 'Status' }: {
+  label: string,
+  value: number,
+  benchmark: number,
+  format: 'number' | 'percent',
   description: string,
-  inverse?: boolean
+  inverse?: boolean,
+  statusGood?: string,
+  statusBad?: string,
+  benchmarkLabel?: string,
+  statusLabel?: string,
 }) {
   const isGood = inverse ? value <= benchmark : value >= benchmark;
   const progress = Math.min(Math.max((value / (benchmark * 1.5)) * 100, 10), 100);
-  
+
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-end">
@@ -1557,15 +1585,15 @@ function RatioIndicator({ label, value, benchmark, format, description, inverse 
         </div>
       </div>
       <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-        <motion.div 
+        <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
           className={`h-full rounded-full ${isGood ? 'bg-green-500' : 'bg-orange-500'}`}
         />
       </div>
       <div className="flex justify-between text-[10px] font-bold text-slate-400">
-        <span>المعيار: {format === 'percent' ? `${benchmark}%` : benchmark}</span>
-        <span>الحالة: {isGood ? 'ممتاز' : 'يحتاج تحسين'}</span>
+        <span>{benchmarkLabel}: {format === 'percent' ? `${benchmark}%` : benchmark}</span>
+        <span>{statusLabel}: {isGood ? statusGood : statusBad}</span>
       </div>
     </div>
   );
