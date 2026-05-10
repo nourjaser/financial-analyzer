@@ -18,6 +18,7 @@ export interface FinancialData {
   notesPayable: number;
   shortTermLoans: number;
   accruedExpenses: number;
+  partnerCurrentAccount: number;
   
   // Equity
   paidInCapital: number;
@@ -33,6 +34,7 @@ export interface FinancialData {
   rents: number;
   marketing: number;
   depreciation: number;
+  adminExpenses: number;
   
   // Other
   otherIncomeExpense: number;

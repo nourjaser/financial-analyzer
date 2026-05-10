@@ -72,6 +72,7 @@ const fieldLabels: Record<string, string> = {
   notesPayable: 'أوراق دفع',
   shortTermLoans: 'قروض قصيرة الأجل',
   accruedExpenses: 'مصاريف مستحقة',
+  partnerCurrentAccount: 'جاري شريك',
   paidInCapital: 'رأس المال',
   retainedEarnings: 'الأرباح المبقاة',
   reserves: 'الاحتياطيات',
@@ -81,6 +82,7 @@ const fieldLabels: Record<string, string> = {
   rents: 'الإيجارات',
   marketing: 'التسويق',
   depreciation: 'الإهلاك',
+  adminExpenses: 'مصاريف إدارية',
   otherIncomeExpense: 'إيرادات/مصاريف أخرى',
   zakatTaxes: 'الزكاة والضرائب',
   totalAssets: 'إجمالي الأصول',
@@ -102,6 +104,7 @@ const initialData: FinancialData = {
   notesPayable: 0,
   shortTermLoans: 0,
   accruedExpenses: 0,
+  partnerCurrentAccount: 0,
   paidInCapital: 0,
   retainedEarnings: 0,
   reserves: 0,
@@ -111,6 +114,7 @@ const initialData: FinancialData = {
   rents: 0,
   marketing: 0,
   depreciation: 0,
+  adminExpenses: 0,
   otherIncomeExpense: 0,
   zakatTaxes: 0
 };
@@ -375,7 +379,7 @@ export default function App() {
   // Calculated values for display
   const getCalculatedValues = (d: FinancialData) => {
     const grossProfit = d.revenue - d.cogs;
-    const totalOpEx = d.salaries + d.rents + d.marketing + d.depreciation;
+    const totalOpEx = d.salaries + d.rents + d.marketing + d.depreciation + d.adminExpenses;
     const ebit = grossProfit - totalOpEx;
     const netIncome = ebit + d.otherIncomeExpense - d.zakatTaxes;
     const totalEquity = d.paidInCapital + d.retainedEarnings + d.reserves;
@@ -661,6 +665,7 @@ export default function App() {
                         <InputField label="أوراق دفع" name="notesPayable" value={data.notesPayable} onChange={handleInputChange} />
                         <InputField label="قروض قصيرة الأجل" name="shortTermLoans" value={data.shortTermLoans} onChange={handleInputChange} />
                         <InputField label="مصاريف مستحقة" name="accruedExpenses" value={data.accruedExpenses} onChange={handleInputChange} />
+                        <InputField label="جاري شريك" name="partnerCurrentAccount" value={data.partnerCurrentAccount} onChange={handleInputChange} />
                       </div>
 
                       <div className="space-y-4 pt-4 border-t border-slate-100">
@@ -695,6 +700,7 @@ export default function App() {
                       <InputField label="إيجارات" name="rents" value={data.rents} onChange={handleInputChange} />
                       <InputField label="مصاريف تسويق" name="marketing" value={data.marketing} onChange={handleInputChange} />
                       <InputField label="إهلاك الأصول الثابتة" name="depreciation" value={data.depreciation} onChange={handleInputChange} />
+                      <InputField label="مصاريف إدارية" name="adminExpenses" value={data.adminExpenses} onChange={handleInputChange} />
                     </div>
 
                     <div className="space-y-4 pt-4 border-t border-slate-100">
@@ -965,9 +971,9 @@ export default function App() {
                           <tbody className="divide-y divide-slate-100">
                             {[
                               { title: 'الأصول (Assets)', fields: ['fixedAssets', 'intangibleAssets', 'cash', 'accountsReceivable', 'inventory', 'prepaidExpenses', 'totalAssets'] },
-                              { title: 'الخصوم (Liabilities)', fields: ['longTermLoans', 'endOfServiceBenefits', 'accountsPayable', 'notesPayable', 'shortTermLoans', 'accruedExpenses', 'totalLiabilities'] },
+                              { title: 'الخصوم (Liabilities)', fields: ['longTermLoans', 'endOfServiceBenefits', 'accountsPayable', 'notesPayable', 'shortTermLoans', 'accruedExpenses', 'partnerCurrentAccount', 'totalLiabilities'] },
                               { title: 'حقوق الملكية (Equity)', fields: ['paidInCapital', 'retainedEarnings', 'reserves', 'totalEquity'] },
-                              { title: 'قائمة الدخل (Income Statement)', fields: ['revenue', 'cogs', 'salaries', 'rents', 'marketing', 'depreciation', 'otherIncomeExpense', 'zakatTaxes', 'netIncome'] }
+                              { title: 'قائمة الدخل (Income Statement)', fields: ['revenue', 'cogs', 'salaries', 'rents', 'marketing', 'depreciation', 'adminExpenses', 'otherIncomeExpense', 'zakatTaxes', 'netIncome'] }
                             ].map((section) => (
                               <React.Fragment key={section.title}>
                                 <tr className="bg-slate-100/50">

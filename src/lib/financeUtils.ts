@@ -6,7 +6,7 @@ export const calculateRatios = (data: FinancialData): AnalysisResult => {
   const totalAssets = totalNonCurrentAssets + totalCurrentAssets;
   
   const totalLongTermLiabilities = data.longTermLoans + data.endOfServiceBenefits;
-  const totalCurrentLiabilities = data.accountsPayable + data.notesPayable + data.shortTermLoans + data.accruedExpenses;
+  const totalCurrentLiabilities = data.accountsPayable + data.notesPayable + data.shortTermLoans + data.accruedExpenses + data.partnerCurrentAccount;
   const totalLiabilities = totalLongTermLiabilities + totalCurrentLiabilities;
   
   const totalEquity = data.paidInCapital + data.retainedEarnings + data.reserves;
@@ -18,7 +18,7 @@ export const calculateRatios = (data: FinancialData): AnalysisResult => {
   const grossProfit = data.revenue - data.cogs;
   const grossProfitMargin = data.revenue !== 0 ? (grossProfit / data.revenue) * 100 : 0;
   
-  const totalOperatingExpenses = data.salaries + data.rents + data.marketing + data.depreciation;
+  const totalOperatingExpenses = data.salaries + data.rents + data.marketing + data.depreciation + data.adminExpenses;
   const ebit = grossProfit - totalOperatingExpenses;
   const netIncome = ebit + data.otherIncomeExpense - data.zakatTaxes;
   
@@ -194,7 +194,7 @@ export const calculateHorizontalAnalysis = (current: FinancialData, previous: Fi
 
 export const calculateCashFlow = (current: FinancialData, previous: FinancialData): CashFlowResult => {
   const currentGrossProfit = current.revenue - current.cogs;
-  const currentOpEx = current.salaries + current.rents + current.marketing + current.depreciation;
+  const currentOpEx = current.salaries + current.rents + current.marketing + current.depreciation + current.adminExpenses;
   const currentNetIncome = (currentGrossProfit - currentOpEx) + current.otherIncomeExpense - current.zakatTaxes;
 
   const deltaAR = current.accountsReceivable - previous.accountsReceivable;
